@@ -12,14 +12,12 @@ import subprocess
 from tensorboardX import SummaryWriter
 from data_loader import get_dataloaders
 from newtalker import Newtalker
-#from testvocaset import cs
-def trainer(args, train_loader, dev_loader, model, optimizer, criterion, epoch=1000):
+def trainer(args, train_loader, dev_loader, model, optimizer, criterion, epoch=100):
     save_path = os.path.join(args.dataset,args.save_path)
     if os.path.exists(save_path):
         shutil.rmtree(save_path)
     os.makedirs(save_path)
-    #writer = SummaryWriter(log_dir='./runs/exp_name')
-    writer = SummaryWriter('./tensorboard')
+   
 
     train_subjects_list = [i for i in args.train_subjects.split(" ")]
     iteration = 0
@@ -135,7 +133,7 @@ def main():
     parser.add_argument("--wav_path", type=str, default= "wav", help='path of the audio signals')
     parser.add_argument("--vertices_path", type=str, default="vertices_npy", help='path of the ground truth')
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help='gradient accumulation')
-    parser.add_argument("--max_epoch", type=int, default=1000, help='number of epochs')
+    parser.add_argument("--max_epoch", type=int, default=100, help='number of epochs')
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--template_file", type=str, default="templates.pkl", help='path of the personalized templates')
     parser.add_argument("--save_path", type=str, default="save2", help='path of the trained models')
@@ -171,11 +169,11 @@ def main():
     checkpoint_path = os.path.join(args.dataset, args.save_path, '_model.pth')
     if os.path.exists(checkpoint_path):
         model.load_state_dict(torch.load(checkpoint_path))
-        print("Loaded checkpoint from epoch 150")
+        print("Loaded checkpoint from epoch ")
 
     
     model = trainer(args, dataset["train"], dataset["test"],model, optimizer, criterion, epoch=args.max_epoch)
-    writer.close()
+    
     test(args, model, dataset["test"], epoch=args.max_epoch)
     
 if __name__=="__main__":
