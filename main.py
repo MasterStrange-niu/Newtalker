@@ -72,25 +72,14 @@ def trainer(args, train_loader, dev_loader, model, optimizer, criterion, epoch=1
             np.save(os.path.join(result_path, file_name[0].split(".")[0]+".npy") , vertice_out.detach().cpu().numpy())
             np.save(os.path.join(result_path2, file_name[0].split(".")[0]+".npy") , d.detach().cpu().numpy())
             #exit()
-        if args.dataset == "vocaset":
-            lve,fdd=cs()
-
-        if args.dataset == "BIWI":
-            lve,fdd=cs2()
-            print (lve,fdd)
-        #if lve<3.03e-05 :#and fdd<4.5e-07:
-        if lve<4.03e-04 and fdd<3.3e-05:
-            torch.save(model.state_dict(), os.path.join(save_path,'{}_model.pth'.format(e)))
-
+        
        
 
         current_loss = np.mean(valid_loss_log)
         current_loss2 = np.mean(valid_loss_log2)
-        writer.add_scalar('lve', lve, global_step=e)
-        writer.add_scalar('fdd', fdd, global_step=e)
-        writer.add_scalar('lve/fdd', lve, global_step=fdd)
-        #if (e > 0 and e % 1000 == 0) or e == args.max_epoch:
-        ###    torch.save(model.state_dict(), os.path.join(save_path,'{}_model.pth'.format(e)))
+        
+        if (e > 0 and e % 25 == 0) or e == args.max_epoch:
+            torch.save(model.state_dict(), os.path.join(save_path,'{}_model.pth'.format(e)))
 
         print("epcoh: {}, current loss:{:.10f} ,current loss2:{:.10f}".format(e+1,current_loss,current_loss2))
     return model
@@ -135,110 +124,7 @@ def test(args, model, test_loader, epoch):
          
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
-def cs(train_sub="FaceTalk_170809_00138_TA FaceTalk_170731_00024_TA",
-       pred_path="./vocaset/result/",
-       gt_path="./vocaset/result2/",
-       region_path="./vocaset/regions/",
-       templates_path="./vocaset/templates.pkl"):  
-    train_subject_list = train_sub.split(" ")
-    sentence_list = ["sentence"+str(i).zfill(2) for i in range(21,41) if i != 32]
-    with open(templates_path, 'rb') as fin:
-        templates = pickle.load(fin, encoding='latin1')
-    with open(os.path.join(region_path, "vocaset-lve-new.txt")) as f:
-        maps = f.read().split(",")
-        mouth_map = [int(i) for i in maps if i != '']
-    with open(os.path.join(region_path, "vocaset-fdd-new.txt")) as f:
-        maps = f.read().split(",")
-        upper_map = [int(i) for i in maps if i != '']    
-    cnt = 0
-    vertices_gt_all = []
-    vertices_pred_all = []
-    motion_std_difference = []
-    for subject in train_subject_list:
-        for sentence in sentence_list:
-            vertices_gt = np.load(os.path.join(gt_path,subject+"_"+sentence+".npy")).reshape(-1,5023,3)
-            vertices_pred = np.load(os.path.join(pred_path,subject+"_"+sentence+".npy")).reshape(-1,5023,3)
-            vertices_pred = vertices_pred[:vertices_gt.shape[0],:,:]
-            motion_pred = vertices_pred - templates[subject].reshape(1,5023,3)
-            motion_gt = vertices_gt - templates[subject].reshape(1,5023,3)
-            cnt += vertices_gt.shape[0]
-            vertices_gt_all.extend(list(vertices_gt))
-            vertices_pred_all.extend(list(vertices_pred))
-            L2_dis_upper = np.array([np.square(motion_gt[:,v, :]) for v in upper_map])
-            L2_dis_upper = np.transpose(L2_dis_upper, (1,0,2))
-            L2_dis_upper = np.sum(L2_dis_upper,axis=2)
-            L2_dis_upper = np.std(L2_dis_upper, axis=0)
-            gt_motion_std = np.mean(L2_dis_upper)           
-            L2_dis_upper = np.array([np.square(motion_pred[:,v, :]) for v in upper_map])
-            L2_dis_upper = np.transpose(L2_dis_upper, (1,0,2))
-            L2_dis_upper = np.sum(L2_dis_upper,axis=2)
-            L2_dis_upper = np.std(L2_dis_upper, axis=0)
-            pred_motion_std = np.mean(L2_dis_upper)
-            motion_std_difference.append(gt_motion_std - pred_motion_std)
-    print('Frame Number: {}'.format(cnt))
-    vertices_gt_all = np.array(vertices_gt_all)
-    print(vertices_gt_all.shape)
-    vertices_pred_all = np.array(vertices_pred_all)
-    print(vertices_pred_all.shape)
-    L2_dis_mouth_max = np.array([np.square(vertices_gt_all[:,v, :]-vertices_pred_all[:,v,:]) for v in mouth_map])
-    L2_dis_mouth_max = np.transpose(L2_dis_mouth_max, (1,0,2))
-    L2_dis_mouth_max = np.sum(L2_dis_mouth_max,axis=2)
-    L2_dis_mouth_max = np.max(L2_dis_mouth_max,axis=1)
-    print('Lip Vertex Error: {:.4e}'.format(np.mean(L2_dis_mouth_max)))
-    print('FDD: {:.4e}'.format(sum(motion_std_difference)/len(motion_std_difference)))
-    return np.mean(L2_dis_mouth_max), sum(motion_std_difference)/len(motion_std_difference)
-def cs2(train_subjects="F2 F3 F4 M3 M4 M5",
-        pred_path="./BIWI/result/",
-        gt_path="./BIWI/result2/",
-        region_path="./BIWI/regions/",
-        templates_path="./BIWI/templates.pkl"):
-    train_subject_list = train_subjects.split(" ")
-    sentence_list = ["e"+str(i).zfill(2) for i in range(37,41)]
-    with open(templates_path, 'rb') as fin:
-        templates = pickle.load(fin, encoding='latin1')
-    with open(os.path.join(region_path, "lve.txt")) as f:
-        maps = f.read().split(", ")
-        mouth_map = [int(i) for i in maps]
-    with open(os.path.join(region_path, "fdd.txt")) as f:
-        maps = f.read().split(", ")
-        upper_map = [int(i) for i in maps]
-    cnt = 0
-    vertices_gt_all = []
-    vertices_pred_all = []
-    motion_std_difference = []
-    for subject in train_subject_list:
-        for sentence in sentence_list:
-            vertices_gt = np.load(os.path.join(gt_path,subject+"_"+sentence+".npy")).reshape(-1,23370,3)
-            vertices_pred = np.load(os.path.join(pred_path,subject+"_"+sentence+".npy")).reshape(-1,23370,3)
-            vertices_pred = vertices_pred[:vertices_gt.shape[0],:,:]
-            motion_pred = vertices_pred - templates[subject].reshape(1,23370,3)
-            motion_gt = vertices_gt - templates[subject].reshape(1,23370,3)
-            cnt += vertices_gt.shape[0]
-            vertices_gt_all.extend(list(vertices_gt))
-            vertices_pred_all.extend(list(vertices_pred))
-            L2_dis_upper = np.array([np.square(motion_gt[:,v, :]) for v in upper_map])
-            L2_dis_upper = np.transpose(L2_dis_upper, (1,0,2))
-            L2_dis_upper = np.sum(L2_dis_upper,axis=2)
-            L2_dis_upper = np.std(L2_dis_upper, axis=0)
-            gt_motion_std = np.mean(L2_dis_upper)
-            L2_dis_upper = np.array([np.square(motion_pred[:,v, :]) for v in upper_map])
-            L2_dis_upper = np.transpose(L2_dis_upper, (1,0,2))
-            L2_dis_upper = np.sum(L2_dis_upper,axis=2)
-            L2_dis_upper = np.std(L2_dis_upper, axis=0)
-            pred_motion_std = np.mean(L2_dis_upper)
-            motion_std_difference.append(gt_motion_std - pred_motion_std)
-    print('Frame Number: {}'.format(cnt))
-    vertices_gt_all = np.array(vertices_gt_all)
-    vertices_pred_all = np.array(vertices_pred_all)    
-    L2_dis_mouth_max = np.array([np.square(vertices_gt_all[:,v, :]-vertices_pred_all[:,v,:]) for v in mouth_map])
-    L2_dis_mouth_max = np.transpose(L2_dis_mouth_max, (1,0,2))
-    L2_dis_mouth_max = np.sum(L2_dis_mouth_max,axis=2)
-    L2_dis_mouth_max = np.max(L2_dis_mouth_max,axis=1)
-    lip_vertex_error = np.mean(L2_dis_mouth_max)
-    fdd = sum(motion_std_difference)/len(motion_std_difference)
-    print('Lip Vertex Error: {:.4e}'.format(lip_vertex_error))
-    print('FDD: {:.4e}'.format(fdd))
-    return lip_vertex_error, fdd   
+
 def main():
     parser = argparse.ArgumentParser(description='FaceFormer: Speech-Driven 3D Facial Animation with Transformers')
     parser.add_argument("--lr", type=float, default=0.0001, help='learning rate')
